@@ -1,35 +1,132 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:prime_policy/models/customer.dart';
-// import 'package:url_launcher/url_launcher.dart'; // Add url_launcher to pubspec.yaml for real use
+import 'package:prime_policy/screens/add_edit_customer_screen.dart';
+import 'package:prime_policy/services/firebase_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
   final Customer customer;
+  final FirebaseService _firebaseService = FirebaseService();
 
-  const CustomerDetailScreen({super.key, required this.customer});
+  CustomerDetailScreen({super.key, required this.customer});
 
-  // Example function to launch a phone call
-  Future<void> _makePhoneCall(String phoneNumber, BuildContext context) async {
-    // final Uri launchUri = Uri(
-    //   scheme: 'tel',
-    //   path: phoneNumber,
-    // );
-    // if (await canLaunchUrl(launchUri)) {
-    //   await launchUrl(launchUri);
-    // } else {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(content: Text('Could not launch call to $phoneNumber')),
-    //   );
-    // }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Calling ${customer.name}...')));
+  void _renewPolicy(BuildContext context) async {
+    final renewedCustomer = Customer(
+      id: customer.id,
+      name: customer.name,
+      policyType: customer.policyType,
+      phoneNumber: customer.phoneNumber,
+      policyStartDate: DateTime.now(),
+      policyExpiryDate: DateTime(
+        DateTime.now().year + 1,
+        DateTime.now().month,
+        DateTime.now().day,
+      ),
+      status: 'Renewed',
+    );
+
+    await _firebaseService.updateCustomer(renewedCustomer);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${customer.name}\'s policy has been renewed!')),
+      );
+      Navigator.of(context).pop();
+    }
   }
 
-  // Placeholder for PDF download
-  void _downloadPdf(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Downloading PDF for ${customer.name}...')),
+  void _deleteCustomer(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: Text('Are you sure you want to delete ${customer.name}?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+            TextButton(
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                await _firebaseService.deleteCustomer(customer.id);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _makePhoneCall(BuildContext context) async {
+    final Uri launchUri = Uri(scheme: 'tel', path: customer.phoneNumber);
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not launch call to ${customer.phoneNumber}'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadPdf(BuildContext context) async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) await Permission.storage.request();
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Policy Details',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('Name: ${customer.name}'),
+            pw.Text('Phone Number: ${customer.phoneNumber}'),
+            pw.Divider(height: 20),
+            pw.Text('Policy Type: ${customer.policyType}'),
+            pw.Text(
+              'Start Date: ${customer.policyStartDate.toLocal().toString().split(' ')[0]}',
+            ),
+            pw.Text(
+              'Expiry Date: ${customer.policyExpiryDate.toLocal().toString().split(' ')[0]}',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final directory = await getExternalStorageDirectory();
+    if (directory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not find directory to save file.')),
+      );
+      return;
+    }
+
+    final path = '${directory.path}/${customer.name}_policy.pdf';
+    final file = File(path);
+    await file.writeAsBytes(await pdf.save());
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('PDF saved to Downloads folder')));
+
+    // ✅ Important: Explicitly set MIME type to application/pdf
+    await OpenFile.open(path, type: "application/pdf");
   }
 
   @override
@@ -57,7 +154,6 @@ class CustomerDetailScreen extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildDetailRow('Policy Type:', customer.policyType),
             _buildDetailRow(
@@ -83,11 +179,28 @@ class CustomerDetailScreen extends StatelessWidget {
   Widget _buildActionButtons(BuildContext context) {
     return Column(
       children: [
+        // This is where the new "Renew" button is added.
+        // It only shows up if the policy is expiring soon or has already expired.
+        if (customer.isExpiringSoon ||
+            customer.policyExpiryDate.isBefore(DateTime.now()))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: ElevatedButton.icon(
+              onPressed: () => _renewPolicy(context),
+              icon: const Icon(Icons.autorenew),
+              label: const Text('Mark as Renewed'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(200, 40),
+              ),
+            ),
+          ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ElevatedButton.icon(
-              onPressed: () => _makePhoneCall(customer.phoneNumber, context),
+              onPressed: () => _makePhoneCall(context),
               icon: const Icon(Icons.call),
               label: const Text('Call'),
             ),
@@ -104,19 +217,28 @@ class CustomerDetailScreen extends StatelessWidget {
           children: [
             ElevatedButton.icon(
               onPressed: () {
-                // Navigate to an edit screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AddEditCustomerScreen(customer: customer),
+                  ),
+                );
               },
               icon: const Icon(Icons.edit),
               label: const Text('Update'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
             ),
             ElevatedButton.icon(
-              onPressed: () {
-                // Show a confirmation dialog before deleting
-              },
+              onPressed: () => _deleteCustomer(context),
               icon: const Icon(Icons.delete),
               label: const Text('Delete'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
@@ -132,7 +254,6 @@ class CustomerDetailScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 120,
