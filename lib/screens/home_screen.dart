@@ -3,6 +3,7 @@ import 'package:prime_policy/screens/customer_list.dart';
 import 'package:prime_policy/screens/dashboard_screen.dart';
 import 'package:prime_policy/screens/login_screen.dart';
 import 'package:prime_policy/screens/notification_screen.dart';
+import 'package:prime_policy/services/firebase_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +15,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
+  final FirebaseService _firebaseService = FirebaseService();
 
   static final List<Widget> _screens = <Widget>[
     const DashboardScreen(),
@@ -28,6 +30,16 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _signOut() async {
+    await _firebaseService.signOut();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (Route<dynamic> route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -38,13 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
-              onPressed: () {
-                // Navigate back to login and remove all previous routes
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (Route<dynamic> route) => false,
-                );
-              },
+              onPressed: _signOut, // Use the sign out method
             ),
           ],
         ),

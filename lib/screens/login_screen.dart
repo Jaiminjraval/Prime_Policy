@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:prime_policy/screens/home_screen.dart';
+import 'package:prime_policy/services/firebase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,16 +10,42 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController(text: '');
+  final _passwordController = TextEditingController(text: '');
   final _formKey = GlobalKey<FormState>();
+  final _firebaseService = FirebaseService();
+  bool _isLoading = false;
 
-  void _login() {
+  Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
-      // In a real app, you would have authentication logic here.
-      // For this demo, we use hardcoded credentials.
-      if (_emailController.text == 'admin@example.com' &&
-          _passwordController.text == 'password') {
+      final email = _emailController.text.trim();
+
+      // This is the new check for Option 2
+      if (email != email.toLowerCase()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email must be in all lowercase letters.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return; // Stop the login process if not lowercase
+      }
+      // End of new check
+
+      setState(() => _isLoading = true);
+
+      final userCredential = await _firebaseService.signInWithEmailPassword(
+        email, // Use the validated email
+        _passwordController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      if (userCredential != null) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
@@ -108,19 +135,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _login,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 40,
-                            vertical: 15,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                        child: const Text('Login'),
-                      ),
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: _login,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 40,
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              child: const Text('Login'),
+                            ),
                     ],
                   ),
                 ),
