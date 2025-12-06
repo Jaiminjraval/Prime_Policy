@@ -38,7 +38,6 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     _expiryDate = widget.customer?.policyExpiryDate;
   }
 
-  // This method is now updated with the new logic
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
     // If selecting an expiry date, but no start date is chosen, show a message and stop.
     if (!isStartDate && _startDate == null) {

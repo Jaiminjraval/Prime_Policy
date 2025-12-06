@@ -84,7 +84,7 @@ class DashboardScreen extends StatelessWidget {
                   DashboardCard(
                     icon: Icons.check_circle,
                     title: 'Renewed',
-                    value: renewedCount.toString(), // Placeholder
+                    value: renewedCount.toString(), 
                   ),
                 ],
               ),

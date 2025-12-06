@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "161724590082",
+    "project_id": "prime-policy-manager-21fb6",
+    "storage_bucket": "prime-policy-manager-21fb6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:161724590082:android:67a92109fd6e7c20329f1b",
+        "android_client_info": {
+          "package_name": "com.example.prime_policy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBue9fbAl0Q9H8ghOjDmKTz5f4bw86_oxg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
